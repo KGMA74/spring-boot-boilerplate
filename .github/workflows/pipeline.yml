@@ -4,7 +4,10 @@ on:
   push:
     branches: [ "main" ]
     paths:
-      - .github/workflows/*.yml
+      - 'src/**'
+      - 'build.gradle*'
+      - 'Dockerfile'
+      - '.github/workflows/*.yml'
 
 jobs:
   compile:
@@ -119,6 +122,13 @@ jobs:
     needs: [build-image]
     
     steps:
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.VPS_HOSTNAME }} >> ~/.ssh/known_hosts
+
       - name: Create deployment folder
         run: ssh ${{ secrets.VPS_USERNAME}}@${{ secrets.VPS_HOSTNAME}} "mkdir -p ci-cd"
       
@@ -130,3 +140,7 @@ jobs:
           docker rm spring-app || true
           docker run -d --name spring-app -p 8080:8080 ${{ secrets.DOCKERHUB_USERNAME }}/spring-boot-boilerplate:latest
           EOF
+
+      - name: Cleanup SSH Key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
