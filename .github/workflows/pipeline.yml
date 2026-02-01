@@ -138,7 +138,7 @@ jobs:
           docker pull ${{ secrets.DOCKERHUB_USERNAME }}/spring-boot-boilerplate:latest
           docker stop spring-app || true
           docker rm spring-app || true
-          docker run -d --name spring-app -p 8080:8080 ${{ secrets.DOCKERHUB_USERNAME }}/spring-boot-boilerplate:latest
+          docker run -d --name spring-app -p 8081:8080 ${{ secrets.DOCKERHUB_USERNAME }}/spring-boot-boilerplate:latest
           EOF
 
       - name: Cleanup SSH Key
