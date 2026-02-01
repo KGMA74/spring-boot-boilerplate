@@ -1,0 +1,132 @@
+name: Spring Boot Boilerplate Pipline
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - .github/workflows/*.yml
+
+jobs:
+  compile:
+    runs-on: self-hosted
+    name: Compile project
+
+    steps:
+      - name: Checkout_code
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup JDK
+        uses: actions/setup-java@v5.2.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Compile project
+        run: |
+          chmod +x ./gradlew
+          ./gradlew compileJava
+
+  unit-tests:
+    runs-on: self-hosted
+    name: Unit tests
+
+    steps:
+      - name: Checkout_code
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup JDK
+        uses: actions/setup-java@v5.2.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Running unit tests
+        run: |
+          chmod +x ./gradlew
+          ./gradlew test
+
+  build:
+    runs-on: self-hosted
+    name: build project
+    needs: [compile, unit-tests]
+
+    steps:
+      - name: Checkout_code
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup JDK
+        uses: actions/setup-java@v5.2.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Build project
+        run: |
+          chmod +x ./gradlew
+          ./gradlew build
+
+  build-image:
+    name: build docker image
+    runs-on: self-hosted
+    needs: [build]
+
+    steps:
+      - name: Checkout_code
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup JDK
+        uses: actions/setup-java@v5.2.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      
+      - name: Extract project version
+        id: extract_version
+        run: |
+          chmod +x ./gradlew
+          echo "VERSION=$(./gradlew properties -q | grep 'version:' | awk '{print $2}')" >> $GITHUB_OUTPUT
+        
+      
+      - name: Login to DockerHub
+        uses: docker/login-action@v3.7.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Buil & Push to DockerHub
+        uses: docker/build-push-action@v6.18.0
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/spring-boot-boilerplate:${{ steps.extract_version.outputs.VERSION}},${{ secrets.DOCKERHUB_USERNAME }}/spring-boot-boilerplate:latest
+          build-args: |
+            PROFILE=dev
+            APP_VERSION=${{ steps.extract_version.outputs.VERSION}}
+
+  deploy:
+    name: Deploy
+    runs-on: self-hosted
+    needs: [build-image]
+    
+    steps:
+      - name: Create deployment folder
+        run: ssh ${{ secrets.VPS_USERNAME}}@${{ secrets.VPS_HOSTNAME}} "mkdir -p ci-cd"
+      
+      - name: Deploy application
+        run: |
+          ssh ${{ secrets.VPS_USERNAME}}@${{ secrets.VPS_HOSTNAME}} <<EOF
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/spring-boot-boilerplate:latest
+          docker stop spring-app || true
+          docker rm spring-app || true
+          docker run -d --name spring-app -p 8080:8080 ${{ secrets.DOCKERHUB_USERNAME }}/spring-boot-boilerplate:latest
+          EOF
