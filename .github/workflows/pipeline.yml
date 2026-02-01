@@ -130,11 +130,11 @@ jobs:
           ssh-keyscan -H ${{ secrets.VPS_HOSTNAME }} >> ~/.ssh/known_hosts
 
       - name: Create deployment folder
-        run: ssh ${{ secrets.VPS_USERNAME}}@${{ secrets.VPS_HOSTNAME}} "mkdir -p ci-cd"
+        run: ssh -i ~/.ssh/deploy_key ${{ secrets.VPS_USERNAME}}@${{ secrets.VPS_HOSTNAME}} "mkdir -p ci-cd"
       
       - name: Deploy application
         run: |
-          ssh ${{ secrets.VPS_USERNAME}}@${{ secrets.VPS_HOSTNAME}} <<EOF
+          ssh -i ~/.ssh/deploy_key ${{ secrets.VPS_USERNAME}}@${{ secrets.VPS_HOSTNAME}} <<EOF
           docker pull ${{ secrets.DOCKERHUB_USERNAME }}/spring-boot-boilerplate:latest
           docker stop spring-app || true
           docker rm spring-app || true
